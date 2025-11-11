@@ -1,6 +1,6 @@
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 class ActionLogger:
 
@@ -14,7 +14,10 @@ class ActionLogger:
         if not self.logger.handlers:
             file_handler = logging.FileHandler(log_file)
             file_handler.setLevel(logging.INFO)
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+            # Set timezone to IST (UTC+5:30)
+            ist_timezone = timezone(timedelta(hours=5, minutes=30))
+            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+            formatter.converter = lambda *args: datetime.now(ist_timezone).timetuple()
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
 
