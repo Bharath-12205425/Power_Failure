@@ -212,7 +212,7 @@ class PredictionsManager {
                 <p class="mb-3">Risk Level: <span class="badge bg-${riskColor}">${riskLevel}</span></p>
                 <small class="text-muted">Model: ${data.model_name || 'Default'}</small>
                 <br>
-                <small class="text-muted">${new Date(data.timestamp).toLocaleString()}</small>
+                <small class="text-muted">${new Date(data.timestamp).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}</small>
             </div>
         `;
     }
@@ -252,7 +252,7 @@ class PredictionsManager {
             tableBody.innerHTML = recentPredictions.map(pred => `
                 <tr>
                     <td><strong>${pred.node_id}</strong></td>
-                    <td>${new Date(pred.timestamp).toLocaleString()}</td>
+                    <td>${new Date(pred.timestamp).toLocaleString('en-IN', {timeZone: 'Asia/Kolkata'})}</td>
                     <td>
                         <div class="d-flex align-items-center">
                             <div class="progress me-2" style="width: 60px; height: 8px;">
