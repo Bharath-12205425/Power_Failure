@@ -83,7 +83,15 @@ function formatPercentage(value, decimals = 1) {
 function formatDateTime(dateString) {
     if (!dateString) return 'N/A';
     try {
-        return new Date(dateString).toLocaleString();
+        return new Date(dateString).toLocaleString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
     } catch (error) {
         return 'Invalid Date';
     }
