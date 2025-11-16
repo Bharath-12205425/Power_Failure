@@ -19,4 +19,7 @@ app.logger.info("Power Grid Analysis App initialized successfully")
 action_logger.log_action("APP_INITIALIZATION", "Power Grid Analysis App started")
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # DISABLED DEBUG MODE - was causing repeated app restarts during deployment
+    # Use debug=False for production to prevent auto-reloader
+    debug_mode = os.environ.get('FLASK_ENV') == 'development'
+    app.run(debug=debug_mode, use_reloader=False)
