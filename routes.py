@@ -17,34 +17,40 @@ ml_pipeline = MLPipeline()
 # Initialize data flag
 _data_initialized = False
 
-@app.before_request
-def initialize_data():
-    """Initialize data and models on first request"""
+def initialize_data_once():
+    """Initialize data and models ONCE on startup - not on every request"""
     global _data_initialized
     if not _data_initialized:
         try:
             app.logger.info("Initializing data on startup...")
-            
+
             # Try to load data
             if data_processor.load_data():
                 app.logger.info("Data loaded successfully")
-                
+
                 # Initialize node statuses if they don't exist
                 if len(data_store.get_all_node_statuses()) == 0:
                     data_processor.initialize_node_statuses()
                     app.logger.info("Node statuses initialized")
-                    
-                # Initialize ML models if they don't exist
+
+                # Load pre-trained models instead of initializing (training) them
                 if len(data_store.get_ml_models(active_only=False)) == 0:
-                    ml_pipeline.initialize_models()
-                    app.logger.info("ML models initialized")
+                    # Only load lightweight model metadata, not actual model files
+                    ml_pipeline._create_default_models()
+                    app.logger.info("ML model metadata loaded")
             else:
                 app.logger.warning("Could not load data - running without historical data")
-                
+                # Still create default model metadata
+                ml_pipeline._create_default_models()
+
             _data_initialized = True
         except Exception as e:
             app.logger.error(f"Error during initialization: {e}")
             app.logger.error(traceback.format_exc())
+            _data_initialized = True  # Prevent infinite retry loops
+
+# Call initialization once at module load, not on every request
+initialize_data_once()
 
 @app.route('/')
 def index():

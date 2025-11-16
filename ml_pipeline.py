@@ -85,8 +85,10 @@ class MLPipeline:
                     }
                     data.append(features)
             
-            # Create synthetic data to have enough samples
-            synthetic_data = self._generate_synthetic_data(len(data) * 10)
+            # MEMORY OPTIMIZATION: Reduce synthetic data size
+            # Generate minimum viable training data instead of len(data) * 10
+            min_samples_needed = max(100, len(data) * 2)  # Reduced from len(data) * 10
+            synthetic_data = self._generate_synthetic_data(min_samples_needed)
             data.extend(synthetic_data)
             
             df = pd.DataFrame(data)
@@ -142,11 +144,11 @@ class MLPipeline:
         return data
     
     def _train_models(self, training_data):
-        """Train multiple ML models"""
+        """Train multiple ML models - OPTIMIZED for low memory usage"""
         try:
             # Prepare features
             features_df = training_data.copy()
-            
+
             # Encode categorical variables
             categorical_cols = ['building_type']
             for col in categorical_cols:
@@ -154,62 +156,67 @@ class MLPipeline:
                     le = LabelEncoder()
                     features_df[col] = le.fit_transform(features_df[col].astype(str))
                     self.label_encoders[col] = le
-            
+
             # Define feature columns (exclude target and status)
             exclude_cols = ['failure', 'status']
             self.feature_columns = [col for col in features_df.columns if col not in exclude_cols]
-            
+
             X = features_df[self.feature_columns]
             y = features_df['failure']
-            
+
             # Split data
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-            
+
             # Scale features
             X_train_scaled = self.scaler.fit_transform(X_train)
             X_test_scaled = self.scaler.transform(X_test)
-            
-            # Train models
-            # HYPERPARAMETER TUNING FOR RANDOM FOREST USING GRIDSEARCHCV
-            rf_param_grid = {
-                'n_estimators': [100, 200],
-                'max_depth': [8, 10, 12],
-                'min_samples_split': [2, 5],
-                'min_samples_leaf': [1, 2],
-                'max_features': ['sqrt', 'log2']
-            }
-            rf_base = RandomForestClassifier(random_state=42)
-            rf_grid_search = GridSearchCV(rf_base, rf_param_grid, cv=3, scoring='roc_auc', n_jobs=-1, verbose=1)
-            # END OF RANDOM FOREST HYPERPARAMETER TUNING SETUP
-            
+
+            # MEMORY OPTIMIZATION: Use simpler, pre-tuned models instead of GridSearchCV
+            # GridSearchCV with cv=3 and n_jobs=-1 was consuming too much memory
             models_config = {
-                'RandomForest': rf_grid_search,
-                'XGBoost': xgb.XGBClassifier(n_estimators=100, random_state=42, max_depth=6)
+                'RandomForest': RandomForestClassifier(
+                    n_estimators=100,  # Reduced from 200
+                    max_depth=10,  # Best parameter from previous tuning
+                    min_samples_split=2,
+                    min_samples_leaf=1,
+                    max_features='sqrt',
+                    random_state=42,
+                    n_jobs=1  # Single core to save memory
+                ),
+                'XGBoost': xgb.XGBClassifier(
+                    n_estimators=50,  # Reduced from 100
+                    max_depth=4,  # Reduced from 6
+                    random_state=42,
+                    n_jobs=1  # Single core to save memory
+                )
             }
-            
-            # Try to add LightGBM if available
+
+            # Add LightGBM if available
             try:
                 import lightgbm as lgb
-                models_config['LightGBM'] = lgb.LGBMClassifier(n_estimators=100, random_state=42, max_depth=6, verbose=-1)
+                models_config['LightGBM'] = lgb.LGBMClassifier(
+                    n_estimators=50,  # Reduced for memory optimization
+                    max_depth=4,
+                    random_state=42,
+                    verbose=-1,
+                    n_jobs=1  # Single core to save memory
+                )
                 global LIGHTGBM_AVAILABLE
                 LIGHTGBM_AVAILABLE = True
+                self.logger.info("LightGBM available and will be trained")
             except ImportError:
-                self.logger.info("LightGBM not available, skipping...")
+                self.logger.warning("LightGBM not available, skipping...")
             
             for model_name, model in models_config.items():
                 try:
-                    # Train model
+                    # Train model with appropriate scaling
                     if model_name == 'RandomForest':
-                        # RANDOM FOREST HYPERPARAMETER TUNING - GridSearchCV will find best parameters
+                        # RandomForest doesn't require scaling
                         model.fit(X_train, y_train)
-                        # Extract best model after tuning
-                        best_model = model.best_estimator_
-                        self.logger.info(f"RandomForest best parameters: {model.best_params_}")
-                        y_pred = best_model.predict(X_test)
-                        y_pred_proba = best_model.predict_proba(X_test)[:, 1]
-                        model = best_model  # Use best estimator for saving
-                        # END OF RANDOM FOREST HYPERPARAMETER TUNING
+                        y_pred = model.predict(X_test)
+                        y_pred_proba = model.predict_proba(X_test)[:, 1]
                     else:
+                        # XGBoost and others benefit from scaling
                         model.fit(X_train_scaled, y_train)
                         y_pred = model.predict(X_test_scaled)
                         y_pred_proba = model.predict_proba(X_test_scaled)[:, 1]
